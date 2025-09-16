@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const rateLimit = require("express-rate-limit");
 const crypto = require("crypto");
 const { Client, Environment } = require("square");
 const { v4: uuidv4 } = require("uuid");
@@ -25,13 +26,76 @@ const isProduction = NODE_ENV === "production";
 const isSquareProduction = SQUARE_ENV === "production";
 
 app.use(cors({
-  origin: isProduction ? [FRONTEND_URL] : true,
-  credentials: true
+  origin: isProduction ? [FRONTEND_URL] : ['http://localhost:3000', 'http://localhost:8080'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-merchant-id']
 }));
-app.use(express.json());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    error: 'Too many requests from this IP, please try again later.',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Stricter rate limiting for sensitive endpoints
+const strictLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // limit each IP to 20 requests per windowMs for sensitive operations
+  message: {
+    error: 'Too many sensitive requests from this IP, please try again later.',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// HTTPS enforcement in production
+if (isProduction) {
+  app.use((req, res, next) => {
+    if (req.header('x-forwarded-proto') !== 'https') {
+      res.redirect(`https://${req.header('host')}${req.url}`);
+    } else {
+      next();
+    }
+  });
+}
+
+app.use(limiter);
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
 const sellers = new Map();
+
+// Input validation functions
+function validatePhoneNumber(phone) {
+  if (!phone) return false;
+  const phoneRegex = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
+  return phoneRegex.test(phone);
+}
+
+function validateEmail(email) {
+  if (!email) return false;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+function validateCardholderName(name) {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  return trimmed.length >= 2 && trimmed.length <= 50 && /^[a-zA-Z\s\-'\.]+$/.test(trimmed);
+}
+
+function sanitizeInput(input) {
+  if (typeof input !== 'string') return input;
+  return input.trim().replace(/[<>]/g, '');
+}
 
 // Initialize with Zorina's seller data from environment variables
 const ZORINA_MERCHANT_ID = process.env.ZORINA_MERCHANT_ID || 'MLJSE2F6EE60D';
@@ -66,7 +130,7 @@ async function refreshTokenIfNeeded(merchantId) {
   // Check if token is expired or will expire in the next 5 minutes
   const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
   if (seller.expiresAt && new Date() > fiveMinutesFromNow) {
-    console.log('🔄 Token needs refresh for merchant:', merchantId);
+    console.log('🔄 Token needs refresh for merchant:', merchantId?.substring(0, 8) + '...');
     
     // Try to refresh token using refresh_token if available
     if (seller.refreshToken) {
@@ -103,7 +167,7 @@ async function refreshTokenIfNeeded(merchantId) {
             expiresAt: new Date(Date.now() + (data.expires_at * 1000))
           });
           
-          console.log('✅ Token refreshed successfully for merchant:', merchantId);
+          console.log('✅ Token refreshed successfully for merchant:', merchantId?.substring(0, 8) + '...');
           return sellers.get(merchantId);
         }
       } catch (error) {
@@ -183,7 +247,11 @@ app.get("/api/customers/search", async (req, res) => {
   
   try {
     const { email, phone } = req.query;
-    console.log('Searching customers with:', { email, phone });
+    console.log('Searching customers with:', { 
+      hasEmail: !!email, 
+      hasPhone: !!phone,
+      phoneLength: phone?.length || 0 
+    });
     
     const client = squareClient(seller.accessToken);
     let customers = [];
@@ -244,7 +312,7 @@ app.get("/api/customers/search", async (req, res) => {
           cards: cardsResult.cards || []
         };
       } catch (cardError) {
-        console.log('Could not fetch cards for customer:', customer.id, cardError.message);
+        console.log('Could not fetch cards for customer:', customer.id?.substring(0, 8) + '...', cardError.message);
         return {
           ...customer,
           cards: []
@@ -272,7 +340,7 @@ app.get("/api/customers/:customerId/cards", async (req, res) => {
   
   try {
     const { customerId } = req.params;
-    console.log('Fetching cards for customer ID:', customerId);
+    console.log('Fetching cards for customer ID:', customerId?.substring(0, 8) + '...');
     
     const client = squareClient(seller.accessToken);
     
@@ -281,13 +349,13 @@ app.get("/api/customers/:customerId/cards", async (req, res) => {
       customerId: customerId
     });
     
-    console.log('Square API response for cards:', result);
+    console.log('Square API response for cards: found', result.cards?.length || 0, 'cards');
     
     const cards = JSON.parse(JSON.stringify(result.cards || [], (key, value) =>
       typeof value === "bigint" ? value.toString() : value
     ));
     
-    console.log('Processed cards:', cards);
+    console.log('Processed cards: count =', cards.length);
     res.json({ cards });
   } catch (error) {
     console.error('Error fetching customer cards:', error);
@@ -418,7 +486,7 @@ app.post("/api/update-token", async (req, res) => {
       expiresAt: expires_at ? new Date(expires_at * 1000) : new Date(Date.now() + (3600 * 1000)) // 1 hour default
     });
     
-    console.log(`✅ Token updated for merchant: ${merchant_id}`);
+    console.log(`✅ Token updated for merchant: ${merchant_id?.substring(0, 8)}...`);
     
     // Send confirmation back to N8N webhook
     if (N8N_WEBHOOK_URL) {
@@ -612,33 +680,53 @@ app.post("/api/customers", async (req, res) => {
   try {
     const { givenName, familyName, emailAddress, phoneNumber } = req.body || {};
     
+    // Sanitize inputs
+    const sanitizedGivenName = sanitizeInput(givenName);
+    const sanitizedFamilyName = sanitizeInput(familyName);
+    const sanitizedEmail = emailAddress ? sanitizeInput(emailAddress) : null;
+    const sanitizedPhone = phoneNumber ? sanitizeInput(phoneNumber) : null;
+    
     // Input validation
-    if (!givenName || !familyName) {
+    if (!sanitizedGivenName || !sanitizedFamilyName) {
       return res.status(400).json({ error: "givenName and familyName are required" });
     }
     
-    if (givenName.length > 50 || familyName.length > 50) {
-      return res.status(400).json({ error: "Name fields must be 50 characters or less" });
+    // Validate name lengths and format
+    if (!validateCardholderName(sanitizedGivenName)) {
+      return res.status(400).json({ error: "Invalid givenName format" });
     }
     
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (emailAddress && !emailRegex.test(emailAddress)) {
+    if (!validateCardholderName(sanitizedFamilyName)) {
+      return res.status(400).json({ error: "Invalid familyName format" });
+    }
+    
+    // Validate email if provided
+    if (sanitizedEmail && !validateEmail(sanitizedEmail)) {
       return res.status(400).json({ error: "Invalid email format" });
     }
     
-    // Square requires E164 format: +1234567890 (no spaces, dashes, or parentheses)
-    const phoneRegex = /^\+[1-9]\d{1,14}$/;
-    if (phoneNumber && !phoneRegex.test(phoneNumber)) {
-      return res.status(400).json({ error: "Phone number must be in E164 format (e.g., +15551234567)" });
+    // Validate phone if provided
+    if (sanitizedPhone && !validatePhoneNumber(sanitizedPhone)) {
+      return res.status(400).json({ error: "Invalid phone number format. Please use +1XXXXXXXXXX format" });
     }
     
+    // Use sanitized data for API call
+    const customerData = {
+      givenName: sanitizedGivenName,
+      familyName: sanitizedFamilyName
+    };
+    
+    if (sanitizedEmail) {
+      customerData.emailAddress = sanitizedEmail;
+    }
+    
+    if (sanitizedPhone) {
+      customerData.phoneNumber = sanitizedPhone;
+    }
+    
+    
     const client = squareClient(seller.accessToken);
-    const { result } = await client.customersApi.createCustomer({
-      givenName: givenName.trim(),
-      familyName: familyName.trim(),
-      emailAddress: emailAddress ? emailAddress.trim().toLowerCase() : undefined,
-      phoneNumber: phoneNumber ? phoneNumber.trim() : undefined
-    });
+    const { result } = await client.customersApi.createCustomer(customerData);
     
     // Convert BigInt values to strings for JSON serialization
     const customer = JSON.parse(JSON.stringify(result.customer, (key, value) =>
@@ -652,7 +740,7 @@ app.post("/api/customers", async (req, res) => {
   }
 });
 
-app.post("/api/cards", async (req, res) => {
+app.post("/api/cards", strictLimiter, async (req, res) => {
   const seller = await requireSeller(req, res);
   if (!seller) return;
   
@@ -660,10 +748,10 @@ app.post("/api/cards", async (req, res) => {
     const { sourceId, customerId, cardholderName, billingAddress } = req.body || {};
     
     console.log('Creating card with data:', { 
-      sourceId: sourceId?.substring(0, 20) + '...', 
-      customerId, 
-      cardholderName,
-      merchantId: seller.merchantId
+      sourceIdLength: sourceId?.length || 0, 
+      customerIdLength: customerId?.length || 0, 
+      hasCardholderName: !!cardholderName,
+      merchantIdLength: seller.merchantId?.length || 0
     });
     
     if (!sourceId || !customerId) {
@@ -678,9 +766,18 @@ app.post("/api/cards", async (req, res) => {
       });
     }
     
-    if (!cardholderName || cardholderName.trim().length === 0) {
+    // Sanitize and validate cardholder name
+    const sanitizedCardholderName = sanitizeInput(cardholderName);
+    
+    if (!sanitizedCardholderName || sanitizedCardholderName.length === 0) {
       return res.status(400).json({ 
         error: "cardholderName is required and cannot be empty"
+      });
+    }
+    
+    if (!validateCardholderName(sanitizedCardholderName)) {
+      return res.status(400).json({ 
+        error: "Invalid cardholder name format. Only letters, spaces, hyphens, apostrophes, and periods are allowed"
       });
     }
     
@@ -690,7 +787,7 @@ app.post("/api/cards", async (req, res) => {
       sourceId,
       card: {
         customerId,
-        cardholderName: cardholderName.trim(),
+        cardholderName: sanitizedCardholderName,
         billingAddress: billingAddress ? {
           postalCode: billingAddress.postal_code,
           locality: billingAddress.locality
@@ -702,7 +799,7 @@ app.post("/api/cards", async (req, res) => {
       typeof value === "bigint" ? value.toString() : value
     ));
     
-    console.log('Card created successfully:', card.id);
+    console.log('Card created successfully:', card.id?.substring(0, 8) + '...');
     res.json({ card });
   } catch (error) {
     console.error("Card creation error:", error);
@@ -717,26 +814,24 @@ app.post("/api/cards", async (req, res) => {
       }
     });
     
-    // Return more specific error information
+    // Don't expose internal error details to client
     const errorResponse = {
-      error: error.message,
-      details: error.errors || 'Unknown error'
+      error: "Failed to create card. Please try again.",
+      code: "CARD_CREATION_FAILED"
     };
     
-    if (error.errors && Array.isArray(error.errors)) {
-      errorResponse.squareErrors = error.errors.map(err => ({
-        category: err.category,
-        code: err.code,
-        detail: err.detail,
-        field: err.field
-      }));
-    }
+    // Log detailed error for debugging (server-side only)
+    console.error("Detailed error:", {
+      message: error.message,
+      type: error.constructor.name,
+      timestamp: new Date().toISOString()
+    });
     
     res.status(500).json(errorResponse);
   }
 });
 
-app.post("/api/payments/create", async (req, res) => {
+app.post("/api/payments/create", strictLimiter, async (req, res) => {
   const seller = await requireSeller(req, res);
   if (!seller) return;
   
@@ -848,7 +943,7 @@ app.delete('/api/customers/delete', async (req, res) => {
       });
     }
 
-    console.log(`Deleting customer: ${customerId}`);
+    console.log(`Deleting customer: ${customerId?.substring(0, 8)}...`);
     
     const client = new Client({
       environment: SQUARE_ENV === 'production' ? Environment.Production : Environment.Sandbox,
@@ -858,7 +953,7 @@ app.delete('/api/customers/delete', async (req, res) => {
     // Delete the customer
     const response = await client.customersApi.deleteCustomer(customerId);
     
-    console.log('Customer deleted successfully:', response.result);
+    console.log('Customer deleted successfully:', response.result?.id?.substring(0, 8) + '...');
     
     res.json({ 
       success: true, 
@@ -884,6 +979,20 @@ app.delete('/api/customers/delete', async (req, res) => {
     });
   }
 });
+
+// Start server locally if not in Vercel
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log('🔒 Security features active:');
+    console.log('   ✅ CORS protection');
+    console.log('   ✅ Rate limiting');
+    console.log('   ✅ Input validation');
+    console.log('   ✅ Input sanitization');
+    console.log('   ✅ Secure error handling');
+  });
+}
 
 // Export for Vercel
 module.exports = app;
