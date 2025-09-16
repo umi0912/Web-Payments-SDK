@@ -1,0 +1,99 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: |
+          # Copy public files to dist
+          mkdir -p dist
+          cp -r public/* dist/
+          cp package.json dist/
+          
+          # Create a simple server for API routes
+          cat > dist/server.js << 'EOF'
+          const express = require('express');
+          const path = require('path');
+          const app = express();
+          
+          app.use(express.static('.'));
+          app.use(express.json());
+          
+          // API routes
+          app.get('/api/config', (req, res) => {
+            res.json({
+              appId: process.env.SQUARE_APP_ID || 'sandbox-sq0idb-YourAppId',
+              environment: 'production'
+            });
+          });
+          
+          app.get('/api/init', (req, res) => {
+            res.json({
+              initialized: true,
+              locationId: process.env.SQUARE_LOCATION_ID || 'YourLocationId'
+            });
+          });
+          
+          app.post('/api/customers/search', (req, res) => {
+            res.json({ customers: [] });
+          });
+          
+          app.post('/api/customers', (req, res) => {
+            res.json({ customer: { id: 'new-customer-id' } });
+          });
+          
+          app.post('/api/cards', (req, res) => {
+            res.json({ card: { id: 'new-card-id' } });
+          });
+          
+          const PORT = process.env.PORT || 3000;
+          app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+          });
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
