@@ -210,7 +210,15 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-app.get("/api/config", (req, res) => {
+app.get("/api/config", limiter, (req, res) => {
+  // Additional security: check referer for production
+  if (isProduction) {
+    const referer = req.get('Referer') || req.get('Origin');
+    if (!referer || !referer.includes('vercel.app')) {
+      console.warn('Suspicious config request from:', referer);
+    }
+  }
+  
   res.json({ 
     appId: SQUARE_APP_ID,
     environment: SQUARE_ENV,
