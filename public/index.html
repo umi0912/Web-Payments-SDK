@@ -102,6 +102,14 @@
       border-radius: 0;
     }
     
+    .search-section-title::before {
+      display: none;
+    }
+    
+    .search-section-title {
+      padding-left: 0;
+    }
+    
     .form-group {
       margin-bottom: 20px;
     }
@@ -160,8 +168,8 @@
       flex: 0 0 auto;
       margin-top: 0;
       width: auto;
-      padding: 18px 32px;
-      font-size: 1rem;
+      padding: 12px 20px;
+      font-size: 0.9rem;
       font-weight: 500;
       letter-spacing: 0.5px;
       text-transform: uppercase;
@@ -176,6 +184,7 @@
       background: white;
       overflow: hidden;
       height: 48px;
+      width: 100%;
     }
     
     .phone-prefix {
@@ -393,6 +402,12 @@
         margin-top: 20px;
       }
       
+      .search-row .btn {
+        padding: 10px 16px;
+        font-size: 13px;
+        margin-top: 0;
+      }
+      
       .phone-input {
         font-size: 16px;
       }
@@ -435,7 +450,7 @@
     <div class="content">
       <!-- Search Customer Section -->
       <div class="section">
-        <div class="section-title">Search Customer</div>
+        <div class="section-title search-section-title">Search Customer</div>
         <div class="form-row search-row">
           <div class="phone-input">
             <div class="phone-prefix">+1</div>
