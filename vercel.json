@@ -79,6 +79,7 @@
     "NODE_ENV": "production",
     "SQUARE_ENV": "production",
     "SQUARE_REDIRECT_URL": "https://oauth.n8n.cloud/oauth2/callback",
-    "N8N_WEBHOOK_URL": "https://aisolutionss.app.n8n.cloud/webhook/access_token_vercel"
+    "N8N_WEBHOOK_URL": "https://aisolutionss.app.n8n.cloud/webhook/access_token_vercel",
+    "FRONTEND_URL": "https://www.zorinapayment.com"
   }
 }

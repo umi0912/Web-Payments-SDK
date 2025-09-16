@@ -26,7 +26,7 @@ const isProduction = NODE_ENV === "production";
 const isSquareProduction = SQUARE_ENV === "production";
 
 app.use(cors({
-  origin: isProduction ? [FRONTEND_URL] : ['http://localhost:3000', 'http://localhost:8080'],
+  origin: isProduction ? [FRONTEND_URL, 'https://zorinapayment.com', 'https://www.zorinapayment.com'] : ['http://localhost:3000', 'http://localhost:8080'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-merchant-id']
