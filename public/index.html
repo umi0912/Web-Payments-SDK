@@ -32,10 +32,10 @@
     .header {
       background: #5C6B50;
       color: white;
-      padding: 40px 40px !important;
+      padding: 20px 20px !important;
       text-align: center;
       border-bottom: 3px solid #F2EBDD;
-      height: 320px !important;
+      height: 200px !important;
       display: flex !important;
       flex-direction: column !important;
       justify-content: center !important;
@@ -51,8 +51,8 @@
     }
     
     .logo-image {
-      height: 140px !important;
-      width: 70% !important;
+      height: 120px !important;
+      width: 80% !important;
       max-width: none !important;
       object-fit: cover !important;
       object-position: center !important;
@@ -329,22 +329,83 @@
     }
     
     @media (max-width: 768px) {
+      body {
+        padding: 10px;
+      }
+      
       .container {
         margin: 0 !important;
         border-radius: 0 !important;
+        box-shadow: none !important;
       }
       
       .header {
-        padding: 30px 20px;
+        padding: 15px 15px !important;
+        height: 160px !important;
+      }
+      
+      .logo-image {
+        height: 100px !important;
+        width: 85% !important;
       }
       
       .content {
+        padding: 15px;
+      }
+      
+      .section {
         padding: 20px;
+        margin-bottom: 20px;
+        border-radius: 8px;
+      }
+      
+      .section-title {
+        font-size: 1.2rem;
+        margin-bottom: 20px;
       }
       
       .form-row {
         flex-direction: column;
         gap: 10px;
+      }
+      
+      .form-control {
+        padding: 10px 12px;
+        font-size: 16px;
+      }
+      
+      .btn {
+        padding: 12px 20px;
+        font-size: 14px;
+        margin-top: 20px;
+      }
+      
+      .phone-input {
+        font-size: 16px;
+      }
+      
+      .phone-input .country-code {
+        padding: 10px 8px;
+        font-size: 16px;
+      }
+      
+      .phone-input .phone-number {
+        padding: 10px 12px;
+        font-size: 16px;
+      }
+      
+      #card-container {
+        height: 52px;
+        margin: 8px 0 20px 0;
+      }
+      
+      .checkbox-group {
+        margin: 20px 0 15px 0;
+      }
+      
+      .checkbox-group label {
+        font-size: 14px;
+        line-height: 1.4;
       }
     }
   </style>
