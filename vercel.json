@@ -1,0 +1,86 @@
+{
+  "version": 2,
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/oauth/(.*)",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/webhooks/(.*)",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/test",
+      "destination": "/public/test.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/public/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization, x-merchant-id"
+        },
+        {
+          "key": "Access-Control-Allow-Credentials",
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "SQUARE_ENV": "production",
+    "SQUARE_APP_ID": "your_square_app_id_here",
+    "SQUARE_APP_SECRET": "your_square_app_secret_here",
+    "SQUARE_REDIRECT_URL": "https://oauth.n8n.cloud/oauth2/callback",
+    "N8N_WEBHOOK_URL": "https://aisolutionss.app.n8n.cloud/webhook/access_token_vercel"
+  }
+}

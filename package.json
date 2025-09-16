@@ -1,0 +1,26 @@
+{
+  "name": "square-web-payments-sdk",
+  "version": "1.0.0",
+  "scripts": {
+    "setup": "node setup.js",
+    "dev": "node --watch server.js",
+    "start": "node server.js",
+    "build": "echo 'No build step required'",
+    "deploy": "node deploy-vercel.js",
+    "deploy:vercel": "vercel --prod",
+    "test": "node test-api.js",
+    "test:watch": "nodemon test-api.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "square": "^36.0.0",
+    "uuid": "^9.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
